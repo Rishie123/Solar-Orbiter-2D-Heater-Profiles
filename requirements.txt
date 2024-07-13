@@ -17,6 +17,7 @@ distlib==0.3.8
 docopt==0.6.2
 filelock==3.15.4
 Flask==3.0.3
+flask-caching==2.0.1
 gunicorn==22.0.0
 identify==2.6.0
 idna==3.7
