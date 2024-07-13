@@ -1,20 +1,26 @@
-from dash import Dash, dcc, html, dash_table
+from dash import Dash, dcc, html
 from dash.dependencies import Input, Output, State
 import plotly.graph_objs as go
 from datetime import datetime
 import pandas as pd
 import numpy as np
 from flask_caching import Cache
-import asyncio
 import gc
+import os
+
+# Check if the files exist on the server
+for filename in ['real2d.csv', 'pred2d.csv', 'HP_TIME_BINS.csv', 'features.csv']:
+    if not os.path.exists(filename):
+        print(f"Error: {filename} not found")
 
 # Load data from CSV files efficiently
-real_2d = np.loadtxt('real2d.csv', delimiter=',')
-pred_2d = np.loadtxt('pred2d.csv', delimiter=',')
-HP_TIME_BINS = pd.read_csv('HP_TIME_BINS.csv', header=None).iloc[:, 0].tolist()
-
-# Load the features data
-FEATURES = pd.read_csv('features.csv', parse_dates=['Date'])
+try:
+    real_2d = np.loadtxt('real2d.csv', delimiter=',')
+    pred_2d = np.loadtxt('pred2d.csv', delimiter=',')
+    HP_TIME_BINS = pd.read_csv('HP_TIME_BINS.csv', header=None).iloc[:, 0].tolist()
+    FEATURES = pd.read_csv('features.csv', parse_dates=['Date'])
+except Exception as e:
+    print(f"Error loading data: {e}")
 
 app = Dash(__name__)
 server = app.server
@@ -28,7 +34,7 @@ cache = Cache(app.server, config={
 @cache.memoize()
 def expensive_computation(data_type):
     # Simulate an expensive computation
-    asyncio.sleep(5)  # Use actual computation instead of sleep
+    # Replace this with actual computation if needed
     return real_2d if data_type == 'real' else pred_2d
 
 app.layout = html.Div([
@@ -65,26 +71,36 @@ app.layout = html.Div([
     Output('3d-plot', 'figure'),
     Input('data-type-radio', 'value')
 )
-async def update_graph(selected_data_type):
-    z_data = await expensive_computation(selected_data_type)
-    # Prepare custom hover text
-    text = [[f'Date: {FEATURES["Date"].iloc[i].strftime("%Y-%m-%d")}<br>HP Time Bin: {HP_TIME_BINS[j]}<br>Value: {z_data[j][i]:.2f}'
-             for i in range(len(FEATURES['Date']))] for j in range(len(HP_TIME_BINS))]
+def update_graph(selected_data_type):
+    try:
+        print(f"Selected data type: {selected_data_type}")
+        z_data = expensive_computation(selected_data_type)
+        print(f"z_data shape: {z_data.shape}")
+        print(f"FEATURES['Date']: {FEATURES['Date']}")
+        print(f"HP_TIME_BINS: {HP_TIME_BINS}")
 
-    # Create the surface plot with custom hover text
-    fig = go.Figure(data=[go.Surface(z=z_data, x=FEATURES['Date'], y=HP_TIME_BINS, colorscale='Viridis', text=text, hoverinfo='x+y+z+text')])
+        # Prepare custom hover text
+        text = [[f'Date: {FEATURES["Date"].iloc[i].strftime("%Y-%m-%d")}<br>HP Time Bin: {HP_TIME_BINS[j]}<br>Value: {z_data[j][i]:.2f}'
+                 for i in range(len(FEATURES['Date']))] for j in range(len(HP_TIME_BINS))]
+        print(f"text: {text}")
 
-    fig.update_layout(title=f'{selected_data_type.capitalize()} Data Visualization', autosize=True,
-                      scene=dict(
-                          xaxis=dict(title='Date'),  # Label for the x-axis
-                          yaxis=dict(title='Time of heater profile'),  # Label for the y-axis
-                          zaxis=dict(title='Magnetic Field Value in nT'),  # Label for the z-axis
-                          camera=dict(eye=dict(x=1.5, y=1.5, z=1.5))))
-    
-    # Collect garbage
-    gc.collect()
-    
-    return fig
+        # Create the surface plot with custom hover text
+        fig = go.Figure(data=[go.Surface(z=z_data, x=FEATURES['Date'], y=HP_TIME_BINS, colorscale='Viridis', text=text, hoverinfo='x+y+z+text')])
+
+        fig.update_layout(title=f'{selected_data_type.capitalize()} Data Visualization', autosize=True,
+                          scene=dict(
+                              xaxis=dict(title='Date'),  # Label for the x-axis
+                              yaxis=dict(title='Time of heater profile'),  # Label for the y-axis
+                              zaxis=dict(title='Magnetic Field Value in nT'),  # Label for the z-axis
+                              camera=dict(eye=dict(x=1.5, y=1.5, z=1.5))))
+        
+        # Collect garbage
+        gc.collect()
+        
+        return fig
+    except Exception as e:
+        print(f"Error in update_graph: {e}")
+        return go.Figure()
 
 @app.callback(
     Output('output-value', 'children'),
@@ -95,16 +111,20 @@ async def update_graph(selected_data_type):
 )
 def display_value(n_clicks, data_type, date_str, hp_time_bin):
     if n_clicks > 0:
-        data = real_2d if data_type == 'real' else pred_2d
-        date = datetime.strptime(date_str, '%Y-%m-%d')
-        # Find the index of the date in the 'FEATURES' DataFrame
-        date_idx = FEATURES[FEATURES['Date'] == date].index.tolist()
-        if date_idx and 0 <= hp_time_bin < data.shape[0]:
-            date_idx = date_idx[0]  # Get the first matching index
-            value = data[hp_time_bin, date_idx]
-            return f'Value for {date_str} at Time of heater profile {hp_time_bin}: {value}'
-        else:
-            return 'Date or HP Time Bin is out of bounds'
+        try:
+            data = real_2d if data_type == 'real' else pred_2d
+            date = datetime.strptime(date_str, '%Y-%m-%d')
+            # Find the index of the date in the 'FEATURES' DataFrame
+            date_idx = FEATURES[FEATURES['Date'] == date].index.tolist()
+            if date_idx and 0 <= hp_time_bin < data.shape[0]:
+                date_idx = date_idx[0]  # Get the first matching index
+                value = data[hp_time_bin, date_idx]
+                return f'Value for {date_str} at Time of heater profile {hp_time_bin}: {value}'
+            else:
+                return 'Date or HP Time Bin is out of bounds'
+        except Exception as e:
+            print(f"Error in display_value: {e}")
+            return 'Error processing request'
     return ''
 
 if __name__ == '__main__':
