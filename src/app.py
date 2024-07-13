@@ -6,8 +6,9 @@ import pandas as pd
 import numpy as np
 from flask_caching import Cache
 import asyncio
+import gc
 
-# Load data from CSV files
+# Load data from CSV files efficiently
 real_2d = np.loadtxt('real2d.csv', delimiter=',')
 pred_2d = np.loadtxt('pred2d.csv', delimiter=',')
 HP_TIME_BINS = pd.read_csv('HP_TIME_BINS.csv', header=None).iloc[:, 0].tolist()
@@ -79,6 +80,10 @@ async def update_graph(selected_data_type):
                           yaxis=dict(title='Time of heater profile'),  # Label for the y-axis
                           zaxis=dict(title='Magnetic Field Value in nT'),  # Label for the z-axis
                           camera=dict(eye=dict(x=1.5, y=1.5, z=1.5))))
+    
+    # Collect garbage
+    gc.collect()
+    
     return fig
 
 @app.callback(
