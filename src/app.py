@@ -4,6 +4,8 @@ import plotly.graph_objs as go
 from datetime import datetime
 import pandas as pd
 import numpy as np
+from flask_caching import Cache
+import asyncio
 
 # Load data from CSV files
 real_2d = np.loadtxt('real2d.csv', delimiter=',')
@@ -15,6 +17,18 @@ FEATURES = pd.read_csv('features.csv', parse_dates=['Date'])
 
 app = Dash(__name__)
 server = app.server
+
+# Configure cache
+cache = Cache(app.server, config={
+    'CACHE_TYPE': 'simple',  # Use a simple in-memory cache for simplicity
+    'CACHE_DEFAULT_TIMEOUT': 300
+})
+
+@cache.memoize()
+def expensive_computation(data_type):
+    # Simulate an expensive computation
+    asyncio.sleep(5)  # Use actual computation instead of sleep
+    return real_2d if data_type == 'real' else pred_2d
 
 app.layout = html.Div([
     html.H1("Data Visualization and Value Retrieval"),
@@ -50,8 +64,8 @@ app.layout = html.Div([
     Output('3d-plot', 'figure'),
     Input('data-type-radio', 'value')
 )
-def update_graph(selected_data_type):
-    z_data = real_2d if selected_data_type == 'real' else pred_2d
+async def update_graph(selected_data_type):
+    z_data = await expensive_computation(selected_data_type)
     # Prepare custom hover text
     text = [[f'Date: {FEATURES["Date"].iloc[i].strftime("%Y-%m-%d")}<br>HP Time Bin: {HP_TIME_BINS[j]}<br>Value: {z_data[j][i]:.2f}'
              for i in range(len(FEATURES['Date']))] for j in range(len(HP_TIME_BINS))]
