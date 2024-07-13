@@ -1,5 +1,3 @@
-# app.py
-
 from dash import Dash, dcc, html, dash_table
 from dash.dependencies import Input, Output, State
 import plotly.graph_objs as go
@@ -91,4 +89,4 @@ def display_value(n_clicks, data_type, date_str, hp_time_bin):
     return ''
 
 if __name__ == '__main__':
-    app.run_server(debug=True, port=8062)
+    app.run_server(debug=False, port=8062)
